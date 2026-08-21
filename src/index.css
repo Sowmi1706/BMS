@@ -1,0 +1,87 @@
+@import "tailwindcss";
+
+@layer base {
+  :root {
+    --font-mono: 'JetBrains Mono', monospace;
+    --font-tech: 'Chakra Petch', sans-serif;
+    --font-sans: 'Plus Jakarta Sans', sans-serif;
+  }
+
+  body {
+    font-family: var(--font-sans);
+    background-color: #060911;
+    color: #e2e8f0;
+    overflow-x: hidden;
+  }
+}
+
+.font-tech {
+  font-family: 'Chakra Petch', sans-serif;
+}
+
+.font-mono-num {
+  font-family: 'JetBrains Mono', monospace;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Glassmorphism surfaces */
+.bms-card {
+  background: linear-gradient(135deg, rgba(15, 23, 42, 0.75) 0%, rgba(10, 16, 31, 0.85) 100%);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(56, 189, 248, 0.12);
+  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+}
+
+.bms-card-glow {
+  border: 1px solid rgba(14, 165, 233, 0.3);
+  box-shadow: 0 0 20px -3px rgba(14, 165, 233, 0.15), 0 8px 24px 0 rgba(0, 0, 0, 0.4);
+}
+
+.bms-card-alert {
+  border: 1px solid rgba(239, 68, 68, 0.4);
+  box-shadow: 0 0 25px -3px rgba(239, 68, 68, 0.2);
+}
+
+.bms-card-safe {
+  border: 1px solid rgba(34, 197, 94, 0.3);
+  box-shadow: 0 0 25px -3px rgba(34, 197, 94, 0.15);
+}
+
+/* Futuristic grid lines & accents */
+.bg-tech-grid {
+  background-size: 32px 32px;
+  background-image: 
+    linear-gradient(to right, rgba(56, 189, 248, 0.03) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(56, 189, 248, 0.03) 1px, transparent 1px);
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: #090e1a;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #1e293b;
+  border-radius: 9999px;
+  border: 1px solid rgba(56, 189, 248, 0.2);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #0284c7;
+}
+
+/* Subtle glow animations */
+@keyframes pulse-cyan {
+  0%, 100% { opacity: 0.9; transform: scale(1); }
+  50% { opacity: 0.4; transform: scale(1.05); }
+}
+
+.animate-pulse-cyan {
+  animation: pulse-cyan 3s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
