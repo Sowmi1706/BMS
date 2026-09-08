@@ -1,6 +1,12 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { BMSTelemetry, SimulationMode, ActiveTab } from '../types/bms';
 import { INITIAL_BMS_TELEMETRY } from '../data/initialBmsData';
+import { vehicleApi } from '../services/vehicleApi';
+import {
+  validateFirestoreConnection,
+  subscribeToVehicle,
+  saveVehicleToFirestore
+} from '../lib/firebase';
 
 interface BMSContextType {
   telemetry: BMSTelemetry;
@@ -25,6 +31,13 @@ interface BMSContextType {
   canFrameCount: number;
   selectedCellId: number | null;
   setSelectedCellId: (id: number | null) => void;
+  // Backend EV / Scooty Controller integration
+  vehicleSpeed: number;
+  isVehicleOn: boolean;
+  isHeadlightOn: boolean;
+  isFirestoreConnected: boolean;
+  toggleVehiclePower: () => Promise<void>;
+  toggleHeadlight: () => Promise<void>;
 }
 
 const BMSContext = createContext<BMSContextType | undefined>(undefined);
@@ -36,6 +49,12 @@ export const BMSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [isSimulating, setIsSimulating] = useState<boolean>(false);
   const [canFrameCount, setCanFrameCount] = useState<number>(142980);
   const [selectedCellId, setSelectedCellId] = useState<number | null>(null);
+
+  // Backend EV Scooty states
+  const [vehicleSpeed, setVehicleSpeed] = useState<number>(0);
+  const [isVehicleOn, setIsVehicleOn] = useState<boolean>(false);
+  const [isHeadlightOn, setIsHeadlightOn] = useState<boolean>(false);
+  const [isFirestoreConnected, setIsFirestoreConnected] = useState<boolean>(false);
 
   // Historical data points for Chart.js
   const [history, setHistory] = useState<{
@@ -85,17 +104,59 @@ export const BMSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const toggleLoad = useCallback(() => {
     setTelemetry(prev => {
       const isOff = prev.chargingLoad.loadStatus === 'OFF';
+      const nextStatus = isOff ? 'ON' : 'OFF';
+      setIsVehicleOn(isOff);
+      vehicleApi.setVehiclePower(isOff).catch(() => {});
       return {
         ...prev,
         chargingLoad: {
           ...prev.chargingLoad,
-          loadStatus: isOff ? 'ON' : 'OFF',
+          loadStatus: nextStatus,
           mainNegRelay: isOff,
         },
         packCurrent: isOff ? -36.8 : 0.0,
       };
     });
   }, []);
+
+  const toggleVehiclePower = useCallback(async () => {
+    const nextPower = !isVehicleOn;
+    setIsVehicleOn(nextPower);
+    if (!nextPower) setVehicleSpeed(0);
+    setTelemetry(prev => ({
+      ...prev,
+      chargingLoad: {
+        ...prev.chargingLoad,
+        loadStatus: nextPower ? 'ON' : 'OFF',
+        mainNegRelay: nextPower,
+      },
+      packCurrent: nextPower ? -18.5 : 0.0,
+    }));
+    try {
+      saveVehicleToFirestore('default-scooty', {
+        isVehicleOn: nextPower,
+        vehicleStatus: nextPower ? 'ON' : 'OFF',
+        ...(nextPower ? {} : { speed: 0 })
+      }).catch(() => {});
+      await vehicleApi.setVehiclePower(nextPower);
+    } catch (err) {
+      console.warn('Backend sync notice (offline or local fallback):', err);
+    }
+  }, [isVehicleOn]);
+
+  const toggleHeadlight = useCallback(async () => {
+    const nextHeadlight = !isHeadlightOn;
+    setIsHeadlightOn(nextHeadlight);
+    try {
+      saveVehicleToFirestore('default-scooty', {
+        isHeadlightOn: nextHeadlight,
+        headlightStatus: nextHeadlight ? 'ON' : 'OFF'
+      }).catch(() => {});
+      await vehicleApi.setHeadlight(nextHeadlight);
+    } catch (err) {
+      console.warn('Backend sync notice (offline or local fallback):', err);
+    }
+  }, [isHeadlightOn]);
 
   const toggleBalancing = useCallback(() => {
     setTelemetry(prev => {
@@ -130,6 +191,80 @@ export const BMSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setTelemetry(INITIAL_BMS_TELEMETRY);
     setSimulationMode('static');
     setIsSimulating(false);
+    setIsVehicleOn(false);
+    setIsHeadlightOn(false);
+    setVehicleSpeed(0);
+    saveVehicleToFirestore('default-scooty', {
+      batteryPercentage: 92.8,
+      speed: 0,
+      temperature: 29.0,
+      isVehicleOn: false,
+      vehicleStatus: 'OFF',
+      isHeadlightOn: false,
+      headlightStatus: 'OFF'
+    }).catch(() => {});
+    vehicleApi.reset().catch(() => {});
+  }, []);
+
+  // Validate Firestore on boot and subscribe to real-time updates
+  useEffect(() => {
+    let unsubscribeFirestore: (() => void) | null = null;
+    let isMounted = true;
+
+    validateFirestoreConnection().then((connected) => {
+      if (isMounted) setIsFirestoreConnected(connected);
+    });
+
+    try {
+      unsubscribeFirestore = subscribeToVehicle(
+        'default-scooty',
+        (v) => {
+          if (!isMounted) return;
+          setIsFirestoreConnected(true);
+          setIsVehicleOn(v.isVehicleOn);
+          setIsHeadlightOn(v.isHeadlightOn);
+          setVehicleSpeed(v.speed);
+          setTelemetry(prev => ({
+            ...prev,
+            soc: v.batteryPercentage,
+            maxTemperature: v.temperature,
+            chargingLoad: {
+              ...prev.chargingLoad,
+              loadStatus: v.isVehicleOn ? 'ON' : 'OFF',
+              mainNegRelay: v.isVehicleOn,
+            }
+          }));
+        },
+        (err) => {
+          console.warn('Firestore subscription notice:', err?.message || err);
+        }
+      );
+    } catch (e) {
+      console.warn('Firestore live listener notice:', e);
+    }
+
+    // Also poll backend API as fallback/secondary sync
+    const fetchBackendData = async () => {
+      try {
+        const response = await vehicleApi.getLatest();
+        if (response.success && response.data && isMounted) {
+          const v = response.data;
+          setIsVehicleOn(v.isVehicleOn);
+          setIsHeadlightOn(v.isHeadlightOn);
+          setVehicleSpeed(v.speed);
+        }
+      } catch {
+        // Backend offline or local standalone mode
+      }
+    };
+
+    const syncInterval = setInterval(fetchBackendData, 5000);
+
+    return () => {
+      isMounted = false;
+      if (unsubscribeFirestore) unsubscribeFirestore();
+      clearInterval(syncInterval);
+    };
   }, []);
 
   // Real-time tick effect (CAN bus streaming & simulation)
@@ -248,6 +383,12 @@ export const BMSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         canFrameCount,
         selectedCellId,
         setSelectedCellId,
+        vehicleSpeed,
+        isVehicleOn,
+        isHeadlightOn,
+        isFirestoreConnected,
+        toggleVehiclePower,
+        toggleHeadlight,
       }}
     >
       {children}

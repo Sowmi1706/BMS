@@ -21,7 +21,8 @@ export const Header: React.FC = () => {
     simulationMode, 
     setSimulationMode, 
     canFrameCount, 
-    resetToDefault 
+    resetToDefault,
+    isFirestoreConnected
   } = useBMS();
 
   const [showNotifications, setShowNotifications] = useState(false);
@@ -89,6 +90,12 @@ export const Header: React.FC = () => {
           <span className="text-slate-600">|</span>
           <Activity className="h-3.5 w-3.5 text-emerald-400" />
           <span>FRAMES: <strong className="text-slate-200">{canFrameCount.toLocaleString()}</strong></span>
+        </div>
+
+        {/* Firestore Live Cloud Badge */}
+        <div className="hidden 2xl:flex items-center gap-1.5 text-xs font-mono-num bg-slate-900/60 border border-slate-800/80 px-3 py-1.5 rounded-lg text-slate-300">
+          <span className="text-amber-400">🔥</span>
+          <span>FIRESTORE: <strong className={isFirestoreConnected ? "text-emerald-400" : "text-amber-400"}>{isFirestoreConnected ? "SYNCED" : "CONNECTED"}</strong></span>
         </div>
       </div>
 

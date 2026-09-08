@@ -1,0 +1,88 @@
+{
+  "entities": {
+    "Vehicle": {
+      "title": "Vehicle",
+      "description": "Electric vehicle telemetry and control state",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique vehicle identifier"
+        },
+        "vehicleName": {
+          "type": "string",
+          "description": "Name or model of vehicle"
+        },
+        "batteryPercentage": {
+          "type": "number",
+          "description": "Current battery state of charge (0-100%)"
+        },
+        "speed": {
+          "type": "number",
+          "description": "Current vehicle speed in km/h"
+        },
+        "temperature": {
+          "type": "number",
+          "description": "Battery pack temperature in Celsius"
+        },
+        "isVehicleOn": {
+          "type": "boolean",
+          "description": "Power status"
+        },
+        "vehicleStatus": {
+          "type": "string",
+          "enum": ["ON", "OFF"],
+          "description": "Power status display"
+        },
+        "isHeadlightOn": {
+          "type": "boolean",
+          "description": "Headlight status"
+        },
+        "headlightStatus": {
+          "type": "string",
+          "enum": ["ON", "OFF"],
+          "description": "Headlight status display"
+        },
+        "packVoltage": {
+          "type": "number",
+          "description": "Battery pack voltage"
+        },
+        "packCurrent": {
+          "type": "number",
+          "description": "Battery pack current"
+        },
+        "estimatedRangeKm": {
+          "type": "number",
+          "description": "Estimated remaining range in km"
+        },
+        "odometerKm": {
+          "type": "number",
+          "description": "Total distance traveled in km"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Timestamp of last update"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Timestamp of record creation"
+        }
+      },
+      "required": [
+        "batteryPercentage",
+        "speed",
+        "temperature",
+        "isVehicleOn",
+        "isHeadlightOn"
+      ]
+    }
+  },
+  "firestore": {
+    "/vehicles/{vehicleId}": {
+      "schema": "Vehicle",
+      "description": "Electric vehicle telemetry records and controls"
+    }
+  }
+}
